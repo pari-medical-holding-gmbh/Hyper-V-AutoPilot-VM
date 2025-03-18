@@ -65,7 +65,9 @@ Put the new ISO + AutoPilot-HyperV-VM.ps1 into a new folder and then create a ne
 
 ### Upload it to Intune
 Upload the file to Intune and use the following commands for install/uninstall:
+
 install: "%systemroot%\sysnative\WindowsPowerShell\v1.0\powershell.exe" -noprofile -executionpolicy bypass -file .\AutoPilot-HyperV-VM.ps1 -InstallMode Install -AdminPermissions
+
 uninstall: "%systemroot%\sysnative\WindowsPowerShell\v1.0\powershell.exe" -noprofile -executionpolicy bypass -file .\AutoPilot-HyperV-VM.ps1 -InstallMode Uninstall -AdminPermissions
 
 ### Optional, create a Hyper V package to activate Hyper V as a dependency through Intune
