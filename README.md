@@ -3,6 +3,8 @@
 This repository contains all necessary scripts and instructions for the automated deployment of a Hyper-V-based AutoPilot VM via Intune/Company Portal.
 The goal is to streamline the provisioning process of virtual machines for testing and development purposes.
 
+Please note: AutoPilot enrollment does NOT work for Self-Deploying, use User-Driven instead, otherwise it will fail at "Securing your hardware (0x800705b4).
+
 ## Features
 - **Fully automated deployment** of Windows 10/11 VMs on Hyper-V
 - **Integration with Intune AutoPilot** for seamless device provisioning
