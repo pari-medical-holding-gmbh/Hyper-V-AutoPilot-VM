@@ -40,6 +40,8 @@ Name it anything you like and create the new [Enterprise application](https://en
 #### Download the latest ISO from Microsoft
 I recommend using the latest patched Enterprise ISO from [here](https://my.visualstudio.com/downloads) or from the MS Admin Portal (needs license admin permission and a working contract with Microsoft).
 
+Then you will need to extract the ISO (f.e. with 7-zip) to a folder definied in "PrepareISO.ps1" at $SourceFolder.
+
 #### Change / Update the autounattend.xml
 This should mostly already work, if you rename some scripts, be sure to update the paths at the autounattend.xml too.
 

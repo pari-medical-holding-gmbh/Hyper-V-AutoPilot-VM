@@ -106,7 +106,7 @@ if (-not ($currentPrincipal.IsInRole([Security.Principal.WindowsBuiltInRole]::Ad
     Exit 2
 }
 
-# Check if Logfolder exists
+# Check if SourceFolder exists
 If (!(test-path $SourceFolder)) {
     Write-ToLog -Warning 1 -LogText "Connot find sources at $SourceFolder . Please provide the sources (download the ISO and extract it to $SourceFolder)"
     Write-Host "Connot find sources at $SourceFolder . Please provide the sources (download the ISO and extract it to $SourceFolder)"
