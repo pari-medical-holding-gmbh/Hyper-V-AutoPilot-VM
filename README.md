@@ -23,7 +23,11 @@ Important note: AutoPilot enrollment does NOT work for Self-Deploying; use User-
 - PowerShell 5.1 or later
 - Windows AutoPilot configured in Intune
 - Internet access (for downloads and AutoPilot upload)
+- Download the latest ISO from Microsoft - I recommend using the latest patched Enterprise ISO from [here](https://my.visualstudio.com/downloads) or from the MS Admin Portal (needs license admin permission and a working contract with Microsoft).
 - (Optional but required to build the ISO) Windows ADK installed to obtain oscdimg.exe (used by PrepareISO.ps1)
+```powershell
+winget install Microsoft.WindowsADK
+```
 
 ## Installation & Usage
 
@@ -33,7 +37,15 @@ git clone https://github.com/pari-medical-holding-gmbh/HyperV-AutoPilot-VM.git
 cd HyperV-AutoPilot-VM
 ```
 
-### 2. Change / Update the RegisterVM-ResetLocally.ps1
+### 2. Create a new Enterprise Application
+Name it anything you like and create the new [Enterprise application](https://entra.microsoft.com/#view/Microsoft_AAD_IAM/StartboardApplicationsMenuBlade/~/AppAppsPreview). Afterwards switch to the corresponding (named the same) Enterprise Registration -> API permissions and add a new permission:
+1. Choose "Microsoft Graph"
+2. Select "Application permissions"
+3. Add those three permissions: Device.Read.All & DeviceManagementManagedDevices.Read.All & DeviceManagementServiceConfig.ReadWrite.All
+4. Create a new secret at "Certificates & secrets"
+5. Temporary write down the secret, will be needed afterwards.
+
+### 3. Change / Update the RegisterVM-ResetLocally.ps1
 This script uploads Autopilot data to Intune using an Entra App Registration (application permissions). Edit the following variables inside RegisterVM-ResetLocally.ps1 with your values BEFORE building the ISO (or supply via parameters if you run the script directly):
 
 ```powershell
@@ -47,7 +59,7 @@ Notes:
 - RegisterVM-ResetLocally.ps1 also supports running in ResetOnly mode (to only perform the reset steps) via the -ResetOnly switch. includes parameter placeholders for TenantId / AppId / AppSecret. Downloads Sysinternals on demand to perform the local reset step.
 - AutoPilot-HyperV-VM.ps1: creates VMs, copies the prepared ISO to C:\ProgramData\HyperV\VMs and starts the VM; supports uninstall mode to remove created VMs.
 
-### 3. Prepare the ISO / Source for the VM
+### 4. Prepare the ISO / Source for the VM
 PrepareISO.ps1 now accepts either a path to an ISO or a folder with extracted Windows setup files. It will:
 - If given an ISO, mount it and copy files to a working SourceFolder.
 - If given a folder, use it as-is (must contain setup.exe or sources\install.wim).
@@ -76,7 +88,7 @@ Important:
 - PrepareISO requires oscdimg.exe from the Windows ADK. If oscdimg is not present it will log an error and will not create the ISO.
 - PrepareISO writes logs to %ProgramData%\Microsoft\IntuneManagementExtension\Logs\ (see Logs section).
 
-### 4. Create a Win32 application for Intune
+### 5. Create a Win32 application for Intune
 Put the new ISO and AutoPilot-HyperV-VM.ps1 into a folder and create a .intunewin package with the Microsoft Win32 Content Prep Tool.
 
 Upload to Intune and use these commands for install/uninstall:
