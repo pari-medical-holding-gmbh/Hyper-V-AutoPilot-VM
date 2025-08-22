@@ -146,6 +146,13 @@ function EnsureDestinationFolder {
     }
 }
 
+# Default Log Input
+$DateTime = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+Write-ToLog -Warning 9 -LogText "Starting Log File of App Installation $($MyInvocation.MyCommand.Name) from $DateTime"
+Write-ToLog -Warning 9 -LogText "############"
+Write-ToLog -Warning 1 -LogText "Work Directory: $(Get-Location)"
+CheckLogFile -FilePath $LogPath -MaxLineLength 200
+
 # Helper: wait for ISO mount and return drive root (or $null) by checking for expected files on new drives
 function Get-MountedIsoDriveLetter {
     param([string]$IsoPath, [int]$TimeoutSeconds = 30)
@@ -346,13 +353,6 @@ else {
         Exit 3
     }
 }
-
-# Default Log Input
-$DateTime = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
-Write-ToLog -Warning 9 -LogText "Starting Log File of App Installation $($MyInvocation.MyCommand.Name) from $DateTime"
-Write-ToLog -Warning 9 -LogText "############"
-Write-ToLog -Warning 1 -LogText "Work Directory: $(Get-Location)"
-CheckLogFile -FilePath $LogPath -MaxLineLength 200
 
 # Check for Administrator permissions
 $currentPrincipal = New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())
