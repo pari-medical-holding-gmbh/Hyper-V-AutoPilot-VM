@@ -136,9 +136,9 @@
         <LocalAccounts>
           <LocalAccount wcm:action="add">
             <Description>Admin Account for automatic AutoPilot Enrollment</Description>
-            <DisplayName>PARI AutoPilot Enrollment</DisplayName>
+            <DisplayName>AutoPilot Enrollment</DisplayName>
             <Group>Administrators</Group>
-            <Name>PARIAdmin</Name>
+            <Name>AutoPilotAdmin</Name>
             <Password>
               <Value />
               <PlainText>true</PlainText>

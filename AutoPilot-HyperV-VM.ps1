@@ -31,8 +31,8 @@ $ComputerName = (Get-ComputerInfo).CsName
 $VMname = "VM-$ComputerName-$DateToday"
 
 # Define standard paths and settings
-$BasePath = "C:\ProgramData\PARI\VMs"
-$ISOName = "Windows11.iso"
+$BasePath = "C:\ProgramData\HyperV\VMs"
+$ISOName = "Windows_AutoPilot.iso"
 $BasePathISO = $BasePath + "\" + $ISOName
 $ISOPath = ".\" + $ISOName
 #$AutounattendFile = ".\autounattend.xml"
@@ -51,7 +51,7 @@ If (!(test-path $logpath)) {
 
 # Log Name will be Log Path provided above + ScriptName
 #$logpathfolder = $logpath
-$logpath = $logpath + "PARI-App-System-" + $MyInvocation.MyCommand.Name + ".log"
+$logpath = $logpath + "App-System-" + $MyInvocation.MyCommand.Name + ".log"
 $logpathAlternative = $logpath + "_alternative.log"
 
 #Check Log file for file length and delete input if file input exceeded limit.

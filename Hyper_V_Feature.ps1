@@ -32,7 +32,7 @@ If (!(test-path $logpath)) {
 }
 
 # Log Name will be Log Path provided above + ScriptName
-$logpath = $logpath + "PARI-App-System-" + $MyInvocation.MyCommand.Name + ".log"
+$logpath = $logpath + "App-System-" + $MyInvocation.MyCommand.Name + ".log"
 $logpathAlternative = $logpath + "_alternative.log"
 
 #Check Log file for file length and delete input if file input exceeded limit.

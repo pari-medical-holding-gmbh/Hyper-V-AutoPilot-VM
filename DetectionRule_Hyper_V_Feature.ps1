@@ -19,7 +19,7 @@ If (!(test-path $LogPath)) {
 }
 
 # Log Name will be Log Path provided above + ScriptName
-$LogPath = $LogPath + "PARI-Detect-System-" + "DetectionRule_Windows_HyperV_Feature" + ".log"
+$LogPath = $LogPath + "Detect-System-" + "DetectionRule_Windows_HyperV_Feature" + ".log"
 $LogPathAlternative = $LogPath + "_alternative.log"
 
 #Check Log file for file length and delete input if file input exceeded limit.
@@ -85,7 +85,7 @@ function Write-ToLog {
 
 # Default Log Input
 $DateTime = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
-Write-ToLog -Warning 9 -LogText "Starting Log File of App Hyper-V Feature from $DateTime"
+Write-ToLog -Warning 9 -LogText "Starting Log File of App Hyper-V Feature Detection from $DateTime"
 Write-ToLog -Warning 9 -LogText "############"
 CheckLogFile -FilePath $LogPath -MaxLineLength 200
 
@@ -111,6 +111,6 @@ ForEach ($user in $users) {
     }
 }
 
-Write-ToLog -Warning 1 -LogText "Script finished with Exitcode $Exitcode"
-Write-host "Script finished with Exitcode $Exitcode"
-Exit $Exitcode
+Write-ToLog -Warning 1 -LogText "Script finished with Exitcode $ExitCode"
+Write-Host "Script finished with Exitcode $ExitCode"
+Exit $ExitCode
