@@ -35,6 +35,14 @@ $BasePath = "C:\ProgramData\HyperV\VMs"
 $ISOName = "Windows_AutoPilot.iso"
 $BasePathISO = $BasePath + "\" + $ISOName
 $ISOPath = ".\" + $ISOName
+# Find the ISO
+$isoPattern = "Windows*.iso"
+$installerFiles = Get-ChildItem -Path $PSScriptRoot -Filter $isoPattern -File
+if ($installerFiles.Count -eq 0) {
+    Write-ToLog -Warning 1 -LogText "No ISO matching '$isoPattern' found in $PSScriptRoot."
+}
+# Select the most recently modified file
+$ISOPath = $installerFiles | Sort-Object LastWriteTime -Descending | Select-Object -First 1
 #$AutounattendFile = ".\autounattend.xml"
 $VMdir = "$BasePath\$VMname"
 $VMCores = 2
@@ -220,6 +228,7 @@ if ($InstallMode -eq "Install") {
             $ExitCode = 5
         }
         if (Test-Path -Path $ISOPath) {
+            Write-ToLog -Warning 1 -LogText "Using ISO $ISOPath."
             Copy-Item -Path $ISOPath -Destination $BasePath -Recurse
         }
         else {

@@ -6,13 +6,13 @@
     <component name="Microsoft-Windows-International-Core-WinPE" processorArchitecture="amd64"
       publicKeyToken="31bf3856ad364e35" language="neutral" versionScope="nonSxS">
       <SetupUILanguage>
-        <UILanguage>en-GB</UILanguage>
+        <UILanguage>en-US</UILanguage>
       </SetupUILanguage>
       <InputLocale>0809:00000809</InputLocale>
-      <SystemLocale>en-GB</SystemLocale>
-      <UILanguage>en-GB</UILanguage>
-      <UILanguageFallback>en-US</UILanguageFallback>
-      <UserLocale>en-GB</UserLocale>
+      <SystemLocale>en-US</SystemLocale>
+      <UILanguage>en-US</UILanguage>
+      <UILanguageFallback>en-GB</UILanguageFallback>
+      <UserLocale>en-US</UserLocale>
     </component>
     <component name="Microsoft-Windows-Setup" processorArchitecture="amd64"
       publicKeyToken="31bf3856ad364e35" language="neutral" versionScope="nonSxS">
@@ -98,15 +98,23 @@
         </ProductKey>
       </UserData>
     </component>
+    <component name="Microsoft-Windows-PnpCustomizationsWinPE" processorArchitecture="amd64"
+      publicKeyToken="31bf3856ad364e35" language="neutral" versionScope="nonSxS">
+      <DriverPaths>
+        <PathAndCredentials wcm:action="add" wcm:keyValue="1">
+          <Path>D:\drivers\pvscsi</Path>
+        </PathAndCredentials>
+      </DriverPaths>
+    </component>
   </settings>
   <settings pass="oobeSystem">
     <component name="Microsoft-Windows-International-Core" processorArchitecture="amd64"
       publicKeyToken="31bf3856ad364e35" language="neutral" versionScope="nonSxS">
       <InputLocale>de-DE</InputLocale>
-      <SystemLocale>en-GB</SystemLocale>
-      <UILanguage>en-GB</UILanguage>
-      <UILanguageFallback>en-GB</UILanguageFallback>
-      <UserLocale>en-GB</UserLocale>
+      <SystemLocale>en-US</SystemLocale>
+      <UILanguage>en-US</UILanguage>
+      <UILanguageFallback>en-US</UILanguageFallback>
+      <UserLocale>en-US</UserLocale>
     </component>
     <component name="Microsoft-Windows-Shell-Setup" processorArchitecture="amd64"
       publicKeyToken="31bf3856ad364e35" language="neutral" versionScope="nonSxS">
@@ -121,8 +129,9 @@
       <FirstLogonCommands>
         <SynchronousCommand wcm:action="add">
           <Order>1</Order>
-          <Description>Set Execution Policy 64 Bit</Description>
-          <CommandLine>powershell -ExecutionPolicy Bypass -File "D:\RegisterVM-ResetLocally.ps1"</CommandLine>
+          <Description>Start AutoPilot Registration Script</Description>
+          <CommandLine>powershell -ExecutionPolicy Bypass -File
+            "C:\Windows\System32\RegisterVM-ResetLocally.ps1"</CommandLine>
           <RequiresUserInput>true</RequiresUserInput>
         </SynchronousCommand>
       </FirstLogonCommands>

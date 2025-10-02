@@ -1,17 +1,18 @@
 <#
     .NOTES
-    Created at 05.12.2024 // Updated at 22.08.2025
+    Created at 05.12.2024 // Updated at 01.10.2025
     Fabian Seitz - PARI GmbH
 
     .LINK
     https://github.com/pari-medical-holding-gmbh/Hyper-V-AutoPilot-VM
 
     .SYNOPSIS
-    PrepareISO - create a customized Windows ISO for Hyper-V AutoPilot deployment.
+    PrepareISO - create a customized Windows ISO for Hyper-V, Parallels and VMware AutoPilot deployment.
 
     .DESCRIPTION
-    This script mounts or uses a Windows ISO / extracted source folder, injects autounattend and helper scripts,
-    and rebuilds a customized ISO for Hyper-V deployments.
+    This script mounts or uses a Windows ISO / extracted source folder, injects autounattend, helper scripts,
+    and VMware drivers, then rebuilds a customized ISO for deployments.
+    It automatically finds and downloads the latest VMware Tools for driver injection and verifies required language packs.
 
     .PARAMETER Source
     Path to an ISO file (.iso) or to a folder that already contains extracted Windows setup files.
@@ -19,6 +20,12 @@
 
     .PARAMETER SearchFolder
     Folder to search for ISOs when -Source is not provided. Default: $env:USERPROFILE\Downloads
+
+    .PARAMETER NoVMWareDriver
+    Switch to disable VMware driver injection. Enabled by default.
+
+    .PARAMETER AutounattendOnly
+    Switch to only inject autounattend.xml, no VMware drivers, Scripts and more (default: false).
 
     .EXAMPLE
     powershell -NoProfile -ExecutionPolicy Bypass -File .\PrepareISO.ps1 -Source "C:\Users\you\Downloads\en-us_windows_11.iso"
@@ -28,8 +35,10 @@
 #>
 
 param(
-    [string]$Source = "",                                # Path to ISO file (.iso) or folder with extracted sources
-    [string]$SearchFolder = "$env:USERPROFILE\Downloads" # folder to search for ISOs when $Source not given
+    [string]$Source = "",                                 # Path to ISO file (.iso) or folder with extracted sources
+    [string]$SearchFolder = "$env:USERPROFILE\Downloads", # folder to search for ISOs when $Source not given
+    [Switch]$NoVMWareDriver = $false,                     # switch to disable VMware driver injection (default: enabled), will also be disabled if $AutounattendOnly is set to true
+    [Switch]$AutounattendOnly = $false                   # switch to only inject autounattend.xml, no VMware drivers (default: false)
 )
 
 # Resolve and prepare paths
@@ -56,7 +65,7 @@ If (!(test-path $logpath)) {
 
 # Log Name will be Log Path provided above + ScriptName
 #$logpathfolder = $logpath
-$logpath = $logpath + "App-System-" + $MyInvocation.MyCommand.Name + ".log"
+$logpath = $logpath + "Script-System-" + $MyInvocation.MyCommand.Name + ".log"
 $logpathAlternative = $logpath + "_alternative.log"
 
 #Check Log file for file length and delete input if file input exceeded limit.
@@ -118,8 +127,15 @@ function Write-ToLog {
             Add-Content $LogPathAlternative "$TimeStr || $WarningText || $LogText"
         }
     }
-    Write-Host "$TimeStr || $WarningText || ##### $LogText #####"
+    Write-Host "$TimeStr || $WarningText || $LogText"
 }
+
+# Default Log Input
+$DateTime = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+Write-ToLog -Warning 9 -LogText "Starting Log File of App Installation $($MyInvocation.MyCommand.Name) from $DateTime"
+Write-ToLog -Warning 9 -LogText "############"
+Write-ToLog -Warning 1 -LogText "Work Directory: $(Get-Location)"
+CheckLogFile -FilePath $LogPath -MaxLineLength 200
 
 # Helper: ensure destination exists and optionally clear if it contains files
 function EnsureDestinationFolder {
@@ -145,13 +161,6 @@ function EnsureDestinationFolder {
         }
     }
 }
-
-# Default Log Input
-$DateTime = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
-Write-ToLog -Warning 9 -LogText "Starting Log File of App Installation $($MyInvocation.MyCommand.Name) from $DateTime"
-Write-ToLog -Warning 9 -LogText "############"
-Write-ToLog -Warning 1 -LogText "Work Directory: $(Get-Location)"
-CheckLogFile -FilePath $LogPath -MaxLineLength 200
 
 # Helper: wait for ISO mount and return drive root (or $null) by checking for expected files on new drives
 function Get-MountedIsoDriveLetter {
@@ -369,27 +378,6 @@ If (!(test-path $SourceFolder)) {
     Exit 3
 }
 
-## It would be prettiest to mount the install.wim, deploy the script and remount, but that never worked, so we will start the script from the "DVD Drive" (ISO)
-
-# Prepare MountDir
-#If (Test-Path $MountDir) {
-#    Remove-Item -Recurse -Force $MountDir
-#}
-#New-Item -ItemType Directory -Force -Path $MountDir >$null 2>&1
-
-#Write-Host "Mounting and committing changes from $WIMFile to $MountDir. This may take a while!"
-#Write-ToLog -Warning 1 -LogText "Mounting and committing changes from $WIMFile to $MountDir. This may take a while!"
-
-# Mount the WIM
-#dism /Mount-Wim /WimFile:$WIMFile /Index:1 /MountDir:$MountDir
-#If (!(Test-Path "$MountDir\ProgramData\HyperV")) {
-#    New-Item -ItemType Directory -Force -Path "$MountDir\ProgramData\HyperV" >$null 2>&1
-#}
-#Copy-Item -Path $ScriptPath -Destination "$MountDir\ProgramData\HyperV\" -Force
-#dism /Unmount-Wim /MountDir:$MountDir /Commit
-
-# Copy Autounattend.xml into the source folder
-# NOTE: moved autounattend/script copy below after we verified SourceFolder has content
 # VERIFY SOURCEFOLDER POPULATED BEFORE COPYING autounattend / script
 $hasSetup = Test-Path (Join-Path $SourceFolder "setup.exe")
 $hasWim = Test-Path (Join-Path $SourceFolder "sources\install.wim")
@@ -408,6 +396,128 @@ if (-not ($hasSetup -or $hasWim)) {
     Exit 3
 }
 
+Write-ToLog -Warning 9 -LogText "Checking for required language packs in install.wim"
+$requiredLang = "en-US" # as configured in autounattend.xml
+$imageIndexToCheck = 5 # As defined in autounattend.xml for Windows 11 Pro
+
+try {
+    Write-ToLog -Warning 1 -LogText "Checking image index $imageIndexToCheck in $WIMFile for language '$requiredLang'..."
+    $imageInfo = Get-WindowsImage -ImagePath $WIMFile -Index $imageIndexToCheck -ErrorAction Stop
+
+    # Correctly extract language strings from the language objects
+    $defaultLang = $imageInfo.Languages
+
+    if ($defaultLang -contains $requiredLang) {
+        Write-ToLog -Warning 1 -LogText "Required language '$requiredLang' found in the image."
+    }
+    else {
+        Write-ToLog -Warning 2 -LogText "Required language '$requiredLang' is NOT found in the image! Default ISO language: $($defaultLang -join ', ')"
+        Write-ToLog -Warning 2 -LogText "The autounattend.xml is configured for en-US. The installation might fail or result in a different language."
+        Write-ToLog -Warning 2 -LogText "It is highly recommended to use a Windows ISO that includes the en-US language pack, or to update autounattend.xml to use an available language."
+        Write-Warning "WARNING: The selected ISO does not contain the required en-US language pack. Default ISO language: $($defaultLang -join ', '). Check the log for details."
+    }
+}
+catch {
+    Write-ToLog -Warning 3 -LogText "Failed to check languages in WIM file: $($_.Exception.Message)"
+    Write-ToLog -Warning 2 -LogText "Could not verify language packs. The installation might fail if en-US is missing."
+}
+Write-ToLog -Warning 9 -LogText "Language check finished"
+
+if (($NoVMWareDriver) -or ($AutounattendOnly)) {
+    Write-ToLog -Warning 1 -LogText "VMware driver injection disabled by parameter."
+}
+else {
+    # Inject VMware drivers (PVSCSI) from VMware Tools ISO
+    Write-ToLog -Warning 9 -LogText "Starting VMware Driver Injection"
+    $vmwareToolsBaseUrl = "https://packages.vmware.com/tools/releases/latest/windows/"
+    $tempDir = Join-Path $env:TEMP "VMwareTools"
+    $downloadedIsoPath = Join-Path $tempDir "VMware-tools-windows.iso"
+    $driverDestPath = Join-Path $SourceFolder "drivers\pvscsi"
+    $vmwareToolsIsoUrl = $null
+
+    try {
+        # Find the latest VMware Tools ISO URL dynamically
+        Write-ToLog -Warning 1 -LogText "Searching for the latest VMware Tools ISO at $vmwareToolsBaseUrl..."
+        $response = Invoke-WebRequest -Uri $vmwareToolsBaseUrl -UseBasicParsing
+        $isoFilename = ($response.Links | Where-Object { $_.href -like 'VMware-tools-windows-*.iso' } | Select-Object -ExpandProperty href | Sort-Object -Descending | Select-Object -First 1)
+
+        if ($isoFilename) {
+            $vmwareToolsIsoUrl = $vmwareToolsBaseUrl + $isoFilename
+            Write-ToLog -Warning 1 -LogText "Found latest ISO: $isoFilename"
+        }
+        else {
+            Write-ToLog -Warning 2 -LogText "Could not automatically find the latest VMware Tools ISO file. Please check the website."
+            $vmwareToolsIsoUrl = "https://packages.vmware.com/tools/releases/latest/windows/VMware-tools-windows-13.0.1-24843032.iso"
+            Write-ToLog -Warning 2 -LogText "Falling back to hardcoded URL: $vmwareToolsIsoUrl"
+        }
+
+        # Create temp directory
+        if (-not (Test-Path $tempDir)) {
+            New-Item -ItemType Directory -Force -Path $tempDir | Out-Null
+            Write-ToLog -Warning 1 -LogText "Created temp directory for VMware Tools at $tempDir"
+        }
+
+        # Download VMware Tools ISO if not available
+        if (-not (Test-Path $downloadedIsoPath)) {
+            Write-ToLog -Warning 1 -LogText "Downloading VMware Tools ISO from $vmwareToolsIsoUrl..."
+            Write-Host "Downloading VMware Tools ISO, this might take a moment..."
+            Invoke-WebRequest -Uri $vmwareToolsIsoUrl -OutFile $downloadedIsoPath
+            Write-ToLog -Warning 1 -LogText "Download complete."
+        }
+        else {
+            Write-ToLog -Warning 1 -LogText "VMware Tools ISO already exists at $downloadedIsoPath. Skipping download."
+        }
+
+        # Mount ISO
+        Write-ToLog -Warning 1 -LogText "Mounting VMware Tools ISO..."
+        $mountResult = Mount-DiskImage -ImagePath $downloadedIsoPath -PassThru -ErrorAction Stop
+        $driveLetter = ($mountResult | Get-Volume).DriveLetter
+        $mountRoot = "$($driveLetter):\"
+
+        if ($mountRoot) {
+            Write-ToLog -Warning 1 -LogText "VMware Tools ISO mounted to $mountRoot"
+
+            # Define path to the drivers and create target directory
+            $driverSourcePath = Join-Path $mountRoot "Program Files\VMware\VMware Tools\Drivers\pvscsi\Win10\amd64"
+            if (-not (Test-Path $driverSourcePath)) {
+                Write-ToLog -Warning 3 -LogText "PVSCSI driver source path not found at $driverSourcePath. Aborting driver injection."
+            }
+            else {
+                if (-not (Test-Path $driverDestPath)) {
+                    New-Item -ItemType Directory -Force -Path $driverDestPath | Out-Null
+                }
+
+                # Copy driver
+                Write-ToLog -Warning 1 -LogText "Copying PVSCSI drivers from $driverSourcePath to $driverDestPath"
+                $copyOK = Copy-WithFallback -Source "$driverSourcePath\*" -Destination $driverDestPath
+                if ($copyOK) {
+                    Write-ToLog -Warning 1 -LogText "Successfully copied VMware PVSCSI drivers."
+                }
+                else {
+                    Write-ToLog -Warning 3 -LogText "Failed to copy VMware PVSCSI drivers."
+                }
+            }
+        }
+        else {
+            Write-ToLog -Warning 3 -LogText "Failed to get drive letter for mounted VMware Tools ISO."
+        }
+    }
+    catch {
+        Write-ToLog -Warning 3 -LogText "An error occurred during VMware driver injection: $($_.Exception.Message)"
+    }
+    finally {
+        # Dismount ISO if it is still mounted
+        if (Test-Path $downloadedIsoPath) {
+            $mountedImage = Get-DiskImage -ImagePath $downloadedIsoPath -ErrorAction SilentlyContinue
+            if ($mountedImage -and $mountedImage.Attached) {
+                Write-ToLog -Warning 1 -LogText "Dismounting VMware Tools ISO."
+                Dismount-DiskImage -ImagePath $downloadedIsoPath -ErrorAction SilentlyContinue
+            }
+        }
+    }
+    Write-ToLog -Warning 9 -LogText "VMware Driver Injection finished"
+}
+
 # Now copy autounattend.xml and Register script into populated SourceFolder (robust copy + logging)
 Write-ToLog -Warning 1 -LogText "Copying autounattend.xml to $SourceFolder..."
 try {
@@ -419,14 +529,27 @@ catch {
     Exit 2
 }
 
-Write-ToLog -Warning 1 -LogText "Copying $ScriptPath to $SourceFolder..."
-try {
-    $ok = Copy-WithFallback -Source $ScriptPath -Destination (Join-Path $SourceFolder (Split-Path $ScriptPath -Leaf))
-    if (-not $ok) { throw "Copy failed" }
+if ($AutounattendOnly) {
+    Write-ToLog -Warning 1 -LogText "Script injection disabled by AutounattendOnly parameter."
 }
-catch {
-    Write-ToLog -Warning 3 -LogText "Failed to copy $ScriptPath into $($SourceFolder): $($_.Exception.Message)"
-    Exit 2
+else {
+    # Create the $OEM$ structure and copy the script for persistence after setup
+    # The folder structure 'sources\$OEM$\$$\System32' is a special mechanism used by Windows Setup.
+    # Files placed here are automatically copied to C:\Windows\System32 on the target system.
+    $oemDir = Join-Path -Path $SourceFolder -ChildPath 'sources\$OEM$\$$\System32'
+    Write-ToLog -Warning 1 -LogText "Creating OEM directory for script persistence at $oemDir"
+    New-Item -ItemType Directory -Path $oemDir -Force | Out-Null
+
+    $destScriptPath = Join-Path $oemDir (Split-Path $ScriptPath -Leaf)
+    Write-ToLog -Warning 1 -LogText "Copying $ScriptPath to $destScriptPath for persistence..."
+    try {
+        $ok = Copy-WithFallback -Source $ScriptPath -Destination $destScriptPath
+        if (-not $ok) { throw "Copy failed" }
+    }
+    catch {
+        Write-ToLog -Warning 3 -LogText "Failed to copy $ScriptPath into $($destScriptPath): $($_.Exception.Message)"
+        Exit 2
+    }
 }
 
 # Check if the file exists in the destination folder
@@ -436,41 +559,46 @@ if (-not (Test-Path "$SourceFolder\autounattend.xml")) {
     Exit 2
 }
 
-# Modify boot files
-$basePath = "$SourceFolder\efi\microsoft\boot"
-$filesToRename = @(
-    @{Source = "cdboot.efi"; Target = "cdboot_prompt.efi"; ReplaceWith = "cdboot_noprompt.efi" },
-    @{Source = "efisys.bin"; Target = "efisys_prompt.bin"; ReplaceWith = "efisys_noprompt.bin" }
-)
+if ($AutounattendOnly) {
+    Write-ToLog -Warning 1 -LogText "Boot file manipulation disabled by AutounattendOnly parameter."
+}
+else {
+    # Modify boot files
+    $basePath = "$SourceFolder\efi\microsoft\boot"
+    $filesToRename = @(
+        @{Source = "cdboot.efi"; Target = "cdboot_prompt.efi"; ReplaceWith = "cdboot_noprompt.efi" },
+        @{Source = "efisys.bin"; Target = "efisys_prompt.bin"; ReplaceWith = "efisys_noprompt.bin" }
+    )
 
-foreach ($file in $filesToRename) {
-    $sourceFile = Join-Path -Path $basePath -ChildPath $file.Source
-    $replacementFile = Join-Path -Path $basePath -ChildPath $file.ReplaceWith
-    $targetFile = Join-Path -Path $basePath -ChildPath $file.Target
+    foreach ($file in $filesToRename) {
+        $sourceFile = Join-Path -Path $basePath -ChildPath $file.Source
+        $replacementFile = Join-Path -Path $basePath -ChildPath $file.ReplaceWith
+        $targetFile = Join-Path -Path $basePath -ChildPath $file.Target
 
-    if (Test-Path $targetFile) {
-        try {
-            Remove-Item -Path $targetFile -Force
+        if (Test-Path $targetFile) {
+            try {
+                Remove-Item -Path $targetFile -Force
+            }
+            Catch {
+                Write-ToLog -Warning 3 -LogText "Failed to remove $($targetFile): $($_.Exception.Message)"
+            }
         }
-        Catch {
-            Write-ToLog -Warning 3 -LogText "Failed to remove $($targetFile): $($_.Exception.Message)"
+
+        if (Test-Path $sourceFile) {
+            Rename-Item -Path $sourceFile -NewName $file.Target
+            Write-ToLog -Warning 1 -LogText "Renamed: $sourceFile -> $($file.Target)"
         }
-    }
+        else {
+            Write-ToLog -Warning 3 -LogText "File not found: $sourceFile"
+        }
 
-    if (Test-Path $sourceFile) {
-        Rename-Item -Path $sourceFile -NewName $file.Target
-        Write-ToLog -Warning 1 -LogText "Renamed: $sourceFile -> $($file.Target)"
-    }
-    else {
-        Write-ToLog -Warning 3 -LogText "File not found: $sourceFile"
-    }
-
-    if (Test-Path $replacementFile) {
-        Rename-Item -Path $replacementFile -NewName $file.Source
-        Write-ToLog -Warning 1 -LogText "Renamed: $replacementFile -> $($file.Source)"
-    }
-    else {
-        Write-ToLog -Warning 3 -LogText "File not found: $replacementFile"
+        if (Test-Path $replacementFile) {
+            Rename-Item -Path $replacementFile -NewName $file.Source
+            Write-ToLog -Warning 1 -LogText "Renamed: $replacementFile -> $($file.Source)"
+        }
+        else {
+            Write-ToLog -Warning 3 -LogText "File not found: $replacementFile"
+        }
     }
 }
 
@@ -547,8 +675,17 @@ if (Test-Path "C:\Program Files (x86)\Windows Kits\10\Assessment and Deployment 
     # Create the ISO
     $oscdimg = "C:\Program Files (x86)\Windows Kits\10\Assessment and Deployment Kit\Deployment Tools\amd64\Oscdimg\oscdimg.exe"
     try {
+        Write-ToLog -Warning 1 -LogText "Starting ISO creation with oscdimg.exe..."
         $procOutput = & $oscdimg @parameters 2>&1
-        foreach ($line in $procOutput) { Write-ToLog -Warning 1 -LogText "oscdimg: $line" }
+
+        # Filter the output to only show relevant lines from oscdimg
+        $relevantLines = $procOutput | Where-Object { $_ -match 'Scanning source tree|Writing \d+ files|After optimization|Done\.' }
+        foreach ($line in $relevantLines) {
+            if (-not [string]::IsNullOrWhiteSpace($line)) {
+                Write-ToLog -Warning 1 -LogText "oscdimg: $line"
+            }
+        }
+        Write-ToLog -Warning 1 -LogText "ISO creation process finished."
     }
     catch {
         Write-ToLog -Warning 3 -LogText "oscdimg invocation failed: $($_.Exception.Message)"
@@ -587,14 +724,6 @@ if (Test-Path "C:\Program Files (x86)\Windows Kits\10\Assessment and Deployment 
     else {
         Write-ToLog -Warning 1 -LogText "SourceFolder was not created by this script; skipping automatic deletion."
     }
-
-    #$script = Get-Content -Path .\RegisterVM-ResetLocally.ps1 -Raw
-    #$bytes = [System.Text.Encoding]::Unicode.GetBytes($script)
-    #$encoded = [Convert]::ToBase64String($bytes)
-    #Write-Host "RegisterVM-ResetLocally.ps1 RAW Content for autounattend.xml:"
-    #Write-ToLog -Warning 1 -LogText "RegisterVM-ResetLocally.ps1 RAW Content for autounattend.xml:"
-    #Write-Host "$encoded"
-    #Write-ToLog -Warning 1 -LogText "$encoded"
 
     Write-Host "Script completed. New ISO can be found here: $NewISOPath"
     Write-ToLog -Warning 1 -LogText "New ISO can be found here: $NewISOPath"
